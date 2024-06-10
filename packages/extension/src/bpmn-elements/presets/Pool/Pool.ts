@@ -11,11 +11,7 @@ const laneMinSize = {
 }
 
 export class HorizontalLaneModel extends GroupNodeModel {
-  initNodeData(data: {
-    width: number
-    height: number
-    properties: Record<string, any>
-  }) {
+  initNodeData(data) {
     super.initNodeData(data)
     this.height = 260
     // this.foldable = true
@@ -41,31 +37,32 @@ export class HorizontalLaneModel extends GroupNodeModel {
     return style
   }
 
-  foldGroup(isFolded: boolean) {
-    this.setProperty('isFolded', isFolded)
-    this.isFolded = isFolded
-    // step 1
-    if (isFolded) {
-      this.x = this.x - this.width / 2 + this.foldedWidth / 2
-      this.unfoldedWidth = this.width
-      this.unfoldedHight = this.height
-      this.width = this.foldedWidth
-    } else {
-      this.width = this.unfoldedWidth
-      this.x = this.x + this.width / 2 - this.foldedWidth / 2
-    }
-    // step 2
-    let allEdges = this.incoming.edges.concat(this.outgoing.edges)
-    this.children.forEach((elementId) => {
-      const nodeModel: any = this.graphModel.getElement(elementId)
-      nodeModel.visible = !isFolded
-      allEdges = allEdges.concat(
-        nodeModel.incoming.edges.concat(nodeModel.outgoing.edges),
-      )
-    })
-    // step 3
-    this.foldEdge(isFolded, allEdges)
-  }
+  // TODO: 取消注释，实现泳道折叠
+  // foldGroup(isFolded: boolean) {
+  //   this.setProperty('isFolded', isFolded)
+  //   this.isFolded = isFolded
+  //   // step 1
+  //   if (isFolded) {
+  //     this.x = this.x - this.width / 2 + this.foldedWidth / 2
+  //     this.unfoldedWidth = this.width
+  //     this.unfoldedHight = this.height
+  //     this.width = this.foldedWidth
+  //   } else {
+  //     this.width = this.unfoldedWidth
+  //     this.x = this.x + this.width / 2 - this.foldedWidth / 2
+  //   }
+  //   // step 2
+  //   let allEdges = this.incoming.edges.concat(this.outgoing.edges)
+  //   this.children.forEach((elementId) => {
+  //     const nodeModel: any = this.graphModel.getElement(elementId)
+  //     nodeModel.visible = !isFolded
+  //     allEdges = allEdges.concat(
+  //       nodeModel.incoming.edges.concat(nodeModel.outgoing.edges),
+  //     )
+  //   })
+  //   // step 3
+  //   this.foldEdge(isFolded, allEdges)
+  // }
 
   // 感应泳道变化，调整宽高
   resizePool(resizeId?: string, newNodeSize?: { x: number; width: number }) {

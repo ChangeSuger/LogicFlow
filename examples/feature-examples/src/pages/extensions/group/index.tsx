@@ -50,12 +50,18 @@ const customDndConfig: ShapeItem[] = [
     label: '子流程-展开',
     text: 'SubProcess',
     icon: require('@/assets/group/subprocess-expanded.png'),
+    properties: {
+      isFolded: false,
+    },
   },
   {
     type: 'sub-process',
     label: '子流程-收起',
     text: 'SubProcess',
     icon: require('@/assets/group/subprocess-collapsed.png'),
+    properties: {
+      isFolded: true,
+    },
   },
 ]
 
@@ -73,7 +79,7 @@ const getDndPanelConfig = (lf: LogicFlow): ShapeItem[] => [
   ...customDndConfig,
 ]
 
-export default function BPMNExtension() {
+export default function GroupExample() {
   const lfRef = useRef<LogicFlow>()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -149,18 +155,28 @@ export default function BPMNExtension() {
     }
   }, [])
 
-  const getGraphData = () => {}
+  const getGraphData = () => {
+    const data = lfRef.current?.getGraphData()
+    console.log('graphData', data)
+  }
 
-  const rerender = () => {}
+  const reRender = () => {}
+
+  const clearHistory = () => {
+    lfRef.current!.history.undos = []
+  }
 
   return (
     <Card title="LogicFlow Extension - DndPanel" className="control-container">
       <Flex wrap="wrap" gap="small">
-        <Button type="primary" key="getData" onClick={getGraphData}>
+        <Button type="primary" onClick={getGraphData}>
           获取数据
         </Button>
-        <Button type="primary" key="rerender" onClick={rerender}>
+        <Button type="primary" onClick={reRender}>
           重新渲染
+        </Button>
+        <Button type="primary" onClick={clearHistory}>
+          清除历史
         </Button>
       </Flex>
       <Divider />

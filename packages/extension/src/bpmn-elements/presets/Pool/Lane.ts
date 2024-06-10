@@ -5,11 +5,7 @@ import { HorizontalLaneModel } from './Pool'
 
 // 泳道
 class LaneModel extends GroupNodeModel {
-  initNodeData(data: {
-    width: number
-    height: number
-    properties: Record<string, any>
-  }) {
+  initNodeData(data) {
     data.properties = {
       ...data.properties,
       processRef: '',

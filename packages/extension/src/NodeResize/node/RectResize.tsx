@@ -38,7 +38,7 @@ export class RectResizeModel extends RectNodeModel {
     }
   }
 
-  initNodeData(data: any): void {
+  initNodeData(data: ResizeNodeConfig): void {
     super.initNodeData(data)
     this.minWidth = 30
     this.minHeight = 30

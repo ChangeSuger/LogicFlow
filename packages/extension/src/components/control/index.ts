@@ -106,6 +106,7 @@ export class Control {
       const icon = document.createElement('i')
       const text = document.createElement('span')
       itemContainer.className = DISABLED
+      itemContainer.title = item.title
       item.onClick && (itemContainer.onclick = item.onClick.bind(null, this.lf))
       item.onMouseEnter &&
         (itemContainer.onmouseenter = item.onMouseEnter.bind(null, this.lf))
@@ -113,7 +114,6 @@ export class Control {
         (itemContainer.onmouseleave = item.onMouseLeave.bind(null, this.lf))
       icon.className = item.iconClass
       text.className = 'lf-control-text'
-      text.title = item.title
       text.innerText = item.text
       itemContainer.append(icon, text)
       switch (item.text) {

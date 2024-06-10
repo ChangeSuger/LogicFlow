@@ -21,7 +21,7 @@ export class Group {
 
   private lf: LogicFlow
   topGroupZIndex = DEFAULT_BOTTOM_Z_INDEX
-  activeGroup: any
+  activeGroup?: GroupNodeModel
   nodeGroupMap: Map<string, string> = new Map()
 
   constructor({ lf }: LogicFlow.ExtensionProps) {
@@ -304,7 +304,7 @@ export class Group {
     const nodeModel = this.lf.getNodeModelById(data.id)
     const bounds = nodeModel?.getBounds()
     if (bounds && nodeModel) {
-      const group = this.getGroup(bounds, data) as GroupNodeModel
+      const group = this.getGroup(bounds, data)
 
       // https://github.com/didi/LogicFlow/issues/1261
       // 当使用SelectionSelect框选后触发lf.addNode(Group)
@@ -345,16 +345,17 @@ export class Group {
   deleteGroupChild = ({ data }: { data: NodeData }) => {
     // 如果删除的是分组节点，则同时删除分组的子节点
     if (data.children) {
-      ;(data.children as Set<string>).forEach((nodeId) => {
+      ;(data as GroupNodeModel).children.forEach((nodeId) => {
         this.nodeGroupMap.delete(nodeId)
         this.lf.deleteNode(nodeId)
       })
     }
-    const groupId = this.nodeGroupMap.get(data.id)
+    const { id } = data
+    const groupId = this.nodeGroupMap.get(id)
     if (groupId) {
       const group = this.lf.getNodeModelById(groupId) as GroupNodeModel
-      group.removeChild(data.id)
-      this.nodeGroupMap.delete(data.id)
+      group.removeChild(id)
+      this.nodeGroupMap.delete(id)
     }
   }
   setActiveGroup = ({ data }: { data: NodeData }) => {
@@ -378,8 +379,6 @@ export class Group {
     let maxZIndex = DEFAULT_BOTTOM_Z_INDEX
     if (nodeModel.isGroup) {
       maxZIndex = Math.max(maxZIndex, nodeModel.zIndex)
-    }
-    if (nodeModel.children) {
       ;(nodeModel as GroupNodeModel).children.forEach((nodeId) => {
         if (typeof nodeId === 'object') {
           // 正常情况下, GroupNodeModel.children是一个id数组，这里只是做个兼容
@@ -505,7 +504,7 @@ export class Group {
   getGroup(
     bounds: BoxBoundsPoint,
     nodeData: NodeData,
-  ): BaseNodeModel | undefined {
+  ): GroupNodeModel | undefined {
     const { nodes } = this.lf.graphModel
     const groups = nodes.filter(
       (node) =>
@@ -514,14 +513,14 @@ export class Group {
         node.id !== nodeData.id,
     )
     if (groups.length === 0) return
-    if (groups.length === 1) return groups[0]
+    if (groups.length === 1) return groups[0] as GroupNodeModel
     let topGroup = groups[groups.length - 1]
     for (let i = groups.length - 2; i >= 0; i--) {
       if (groups[i].zIndex > topGroup.zIndex) {
         topGroup = groups[i]
       }
     }
-    return topGroup
+    return topGroup as GroupNodeModel
   }
 
   /**
@@ -530,7 +529,22 @@ export class Group {
   getNodeGroup(nodeId: string) {
     const groupId = this.nodeGroupMap.get(nodeId)
     if (groupId) {
-      return this.lf.getNodeModelById(groupId)
+      return this.lf.getNodeModelById(groupId) as GroupNodeModel
+    }
+  }
+
+  /**
+   * 获取某个节点在所属的嵌套分组中，可见且层级最深的分组
+   */
+  getNodeGroupVisible(nodeId: string) {
+    let groupId = this.nodeGroupMap.get(nodeId)
+    while (groupId !== undefined) {
+      const groupModel = this.lf.getNodeModelById(groupId)! as GroupNodeModel
+      if (groupModel.visible) {
+        return groupModel
+      } else {
+        groupId = this.nodeGroupMap.get(groupId)
+      }
     }
   }
 

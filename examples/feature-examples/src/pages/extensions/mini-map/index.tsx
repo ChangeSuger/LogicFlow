@@ -77,7 +77,7 @@ const data: LogicFlow.GraphConfigData = {
   edges,
 }
 
-export default function MiniMapExtension() {
+export default function MiniMapExample() {
   const lfRef = useRef<LogicFlow>()
   const containerRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)

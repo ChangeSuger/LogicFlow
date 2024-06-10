@@ -1,7 +1,11 @@
-import LogicFlow, { h, BaseEdgeModel } from '@logicflow/core'
-import { RectResizeModel, RectResizeView } from '../../NodeResize'
+import LogicFlow, { h } from '@logicflow/core'
+import {
+  RectResizeModel,
+  RectResizeView,
+  type ResizeNodeConfig,
+} from '../../NodeResize'
+import { Group } from '.'
 
-import GraphElements = LogicFlow.GraphElements
 import NodeData = LogicFlow.NodeData
 import Point = LogicFlow.Point
 import EdgeConfig = LogicFlow.EdgeConfig
@@ -9,6 +13,10 @@ import EdgeConfig = LogicFlow.EdgeConfig
 const defaultWidth = 500
 const defaultHeight = 300
 const DEFAULT_BOTTOM_Z_INDEX = -10000
+
+export type GroupNodeConfig = ResizeNodeConfig & {
+  children?: string[]
+}
 
 export class GroupNodeModel extends RectResizeModel {
   readonly isGroup = true
@@ -39,7 +47,7 @@ export class GroupNodeModel extends RectResizeModel {
   /**
    * 分组折叠状态
    */
-  isFolded: boolean = false
+  isFolded!: boolean
   unfoldedWidth = defaultWidth
   unfoldedHeight = defaultHeight
   /**
@@ -47,9 +55,9 @@ export class GroupNodeModel extends RectResizeModel {
    */
   childrenLastFoldStatus: Record<string, boolean> = {}
 
-  initNodeData(data: any): void {
+  initNodeData(data: GroupNodeConfig) {
     super.initNodeData(data)
-    let children: any = []
+    let children: string[] = []
     if (Array.isArray(data.children)) {
       children = data.children
     }
@@ -67,92 +75,21 @@ export class GroupNodeModel extends RectResizeModel {
     this.resizable = false
     this.autoToFront = false
     this.foldable = false
+    this.isFolded = false
     if (this.properties.isFolded === undefined) {
       this.properties.isFolded = false
     }
-    this.isFolded = !!this.properties.isFolded
     // fixme: 虽然默认保存的分组不会收起，但是如果重写保存数据分组了，
     // 此处代码会导致多一个history记录
     setTimeout(() => {
-      this.isFolded && this.foldGroup(this.isFolded)
+      this.foldGroup(!!this.properties.isFolded)
     })
-    // this.foldGroup(this.isFolded);
   }
 
   getResizeOutlineStyle() {
     const style = super.getResizeOutlineStyle()
     style.stroke = 'none'
     return style
-  }
-
-  /**
-   * 折叠分组
-   * 1. 折叠分组的宽高
-   * 2. 处理分组子节点
-   * 3. 处理连线
-   */
-  foldGroup(isFolded: boolean) {
-    if (isFolded === this.isFolded) {
-      // 防止多次调用同样的状态设置
-      // 如果this.isFolded=false，同时触发foldGroup(false)，会导致下面的childrenLastFoldStatus状态错乱
-      return
-    }
-    this.setProperty('isFolded', isFolded)
-    this.isFolded = isFolded
-    // step 1
-    if (isFolded) {
-      this.x = this.x - this.width / 2 + this.foldedWidth / 2
-      this.y = this.y - this.height / 2 + this.foldedHeight / 2
-      this.unfoldedWidth = this.width
-      this.unfoldedHeight = this.height
-      this.width = this.foldedWidth
-      this.height = this.foldedHeight
-    } else {
-      this.width = this.unfoldedWidth
-      this.height = this.unfoldedHeight
-      this.x = this.x + this.width / 2 - this.foldedWidth / 2
-      this.y = this.y + this.height / 2 - this.foldedHeight / 2
-    }
-    // step 2
-    let allEdges = [...this.incoming.edges, ...this.outgoing.edges]
-    this.children.forEach((elementId) => {
-      const nodeModel = this.graphModel.getElement(elementId)
-      if (nodeModel) {
-        const foldStatus = nodeModel.isFolded
-        // FIX: https://github.com/didi/LogicFlow/issues/1007
-        if (nodeModel.isGroup && !nodeModel.isFolded) {
-          // 正常情况下，parent折叠后，children应该折叠
-          // 因此当parent准备展开时，children的值目前肯定是折叠状态，也就是nodeModel.isFolded=true，这个代码块不会触发
-          // 只有当parent准备折叠时，children目前状态才有可能是展开,
-          // 即nodeModel.isFolded=false，这个代码块触发，此时isFolded=true，触发children也进行折叠
-          ;(nodeModel as GroupNodeModel).foldGroup(isFolded)
-        }
-
-        if (nodeModel.isGroup && !isFolded) {
-          // 当parent准备展开时，children的值应该恢复到折叠前的状态
-          const lastFoldStatus = this.childrenLastFoldStatus[elementId]
-          if (
-            lastFoldStatus !== undefined &&
-            lastFoldStatus !== nodeModel.isFolded
-          ) {
-            // https://github.com/didi/LogicFlow/issues/1145
-            // 当parent准备展开时，children的值肯定是折叠，也就是nodeModel.isFolded=true
-            // 当parent准备展开时，如果children之前的状态是展开，则恢复展开状态
-            ;(nodeModel as GroupNodeModel).foldGroup(lastFoldStatus)
-          }
-        }
-        // 存储parent触发children改变折叠状态前的状态
-        this.childrenLastFoldStatus[elementId] = !!foldStatus
-        nodeModel.visible = !isFolded
-
-        const incomingEdges = (nodeModel.incoming as GraphElements).edges
-        const outgoingEdges = (nodeModel.outgoing as GraphElements).edges
-
-        allEdges = [...allEdges, ...incomingEdges, ...outgoingEdges]
-      }
-    })
-    // step 3
-    this.foldEdge(isFolded, allEdges)
   }
 
   getAnchorStyle(anchorInfo?: Point) {
@@ -165,34 +102,125 @@ export class GroupNodeModel extends RectResizeModel {
   }
 
   /**
-   * 折叠分组的时候，处理分组自身的连线和分组内部子节点上的连线
-   * 边的分类：
-   *   - 虚拟边：分组被收起时，表示分组本身与外部节点关系的边。
-   *   - 真实边：分组本身或者分组内部节点与外部节点节点（非收起分组）关系的边。
-   * 如果一个分组，本身与外部节点有M条连线，且内部N个子节点与外部节点有连线，那么这个分组收起时会生成M+N条连线。
-   * 折叠分组时：
-   *   - 原有的虚拟边删除；
-   *   - 创建一个虚拟边；
-   *   - 真实边则隐藏；
-   * 展开分组是：
-   *   - 原有的虚拟边删除；
-   *   - 如果目外部点是收起的分组，则创建虚拟边；
-   *   - 如果外部节点是普通节点，则显示真实边；
+   * 折叠/展开分组
+   * @param isFolded `true` 折叠分组，`false` 展开分组
    */
-  foldEdge(isFolded: boolean, allEdges: BaseEdgeModel[]) {
-    allEdges.forEach((edgeModel, index) => {
-      const {
-        id,
-        sourceNodeId,
-        targetNodeId,
-        startPoint,
-        endPoint,
-        type,
-        text,
-      } = edgeModel
+  foldGroup(isFolded: boolean) {
+    this.foldGroupAction(isFolded, false)
+  }
+
+  /**
+   * 内部方法，处理分组的折叠/展开
+   * @param isFolded `true` 折叠分组，`false` 展开分组
+   * @param isChildren 是否为嵌套的子分组
+   */
+  private foldGroupAction(isFolded: boolean, isChildren = true) {
+    if (isFolded === this.isFolded) {
+      // 防止多次调用同样的状态设置
+      // 如果this.isFolded=false，同时触发foldGroup(false)，会导致下面的childrenLastFoldStatus状态错乱
+      return
+    }
+    this.setProperty('isFolded', isFolded)
+    this.isFolded = isFolded
+    isFolded ? this.flodAction(isChildren) : this.unflodAction(isChildren)
+  }
+
+  /**
+   * 内部方法，折叠分组
+   * 1. 折叠分组
+   * 2. 递归处理子分组（折叠&隐藏）
+   * 3. 处理连线
+   * @param isChildren 是否为嵌套的子分组
+   */
+  private flodAction(isChildren: boolean) {
+    const isFolded = true
+    // step 1
+    this.x = this.x - this.width / 2 + this.foldedWidth / 2
+    this.y = this.y - this.height / 2 + this.foldedHeight / 2
+    this.unfoldedWidth = this.width
+    this.unfoldedHeight = this.height
+    this.width = this.foldedWidth
+    this.height = this.foldedHeight
+    // step 2
+    this.children.forEach((nodeId) => {
+      const nodeModel = this.graphModel.getNodeModelById(nodeId)
+      if (nodeModel) {
+        if (nodeModel.isGroup) {
+          // FIX: https://github.com/didi/LogicFlow/issues/1007
+          // 存在分组嵌套时，在折叠时需要递归折叠，并存储子分组折叠前的状态
+          this.childrenLastFoldStatus[nodeId] = !!nodeModel.isFolded
+          ;(nodeModel as GroupNodeModel).foldGroupAction(isFolded)
+        }
+        nodeModel.visible = !isFolded
+      }
+    })
+    // step 3
+    if (!isChildren) this.foldEdge()
+  }
+
+  /**
+   * 内部方法，展开分组
+   * 1. 展开分组
+   * 2. 递归处理子分组（展开&显示）
+   * 3. 处理连线
+   */
+  private unflodAction(isChildren: boolean) {
+    const isFolded = false
+    // step 1
+    this.width = this.unfoldedWidth
+    this.height = this.unfoldedHeight
+    this.x = this.x + this.width / 2 - this.foldedWidth / 2
+    this.y = this.y + this.height / 2 - this.foldedHeight / 2
+    // step 2
+    this.children.forEach((nodeId) => {
+      const nodeModel = this.graphModel.getNodeModelById(nodeId)
+      if (nodeModel) {
+        if (nodeModel.isGroup) {
+          // https://github.com/didi/LogicFlow/issues/1145
+          // 存在分组嵌套时，在展开后需要将子分组恢复到折叠前的状态
+          const lastFoldStatus = !!this.childrenLastFoldStatus[nodeId]
+          ;(nodeModel as GroupNodeModel).foldGroupAction(lastFoldStatus)
+        }
+        nodeModel.visible = !isFolded
+      }
+    })
+    // step 3
+    if (!isChildren) this.foldEdge()
+  }
+
+  /**
+   * 折叠/展开时，处理分组自身的连线和分组内部子节点上的连线
+   *
+   * 边的分类：
+   * - 虚拟边：分组被收起时，表示分组本身与外部节点关系的边。
+   * - 真实边：分组本身或者分组内部节点与外部节点节点（非收起分组）关系的边。
+   *
+   * 如果一个分组，本身与外部节点有M条连线，且内部子节点与外部节点有N条连线，那么这个分组收起时会生成M+N条连线。
+   */
+  private foldEdge() {
+    const edges = this.getAllEdges()
+
+    edges.forEach((edgeModel) => {
+      // 删除原有的虚拟边
+      if (edgeModel.virtual && edgeModel.isFoldedEdge) {
+        this.graphModel.deleteEdgeById(edgeModel.id)
+        return
+      }
+
+      const { sourceNodeId, targetNodeId, startPoint, endPoint, type, text } =
+        edgeModel
+      const sourceNode = this.graphModel.getNodeModelById(sourceNodeId)!
+      const targetNode = this.graphModel.getNodeModelById(targetNodeId)!
+      // 如果真实边的两端均可见，则真实边可见
+      if (sourceNode.visible && targetNode.visible) {
+        edgeModel.visible = true
+        return
+      }
+      edgeModel.visible = false
+
       const properties = edgeModel.getProperties()
+
       const data: EdgeConfig = {
-        id: `${id}__${index}`,
         sourceNodeId,
         targetNodeId,
         startPoint,
@@ -201,76 +229,77 @@ export class GroupNodeModel extends RectResizeModel {
         properties,
         text: text?.value,
       }
-      if (edgeModel.virtual) {
-        this.graphModel.deleteEdgeById(edgeModel.id)
-      }
-      let targetNodeIdGroup = this.graphModel.group.getNodeGroup(targetNodeId)
-      // 考虑目标节点本来就是分组的情况
-      if (!targetNodeIdGroup) {
-        targetNodeIdGroup = this.graphModel.getNodeModelById(targetNodeId)
-      }
-      let sourceNodeIdGroup = this.graphModel.group.getNodeGroup(sourceNodeId)
-      if (!sourceNodeIdGroup) {
-        sourceNodeIdGroup = this.graphModel.getNodeModelById(sourceNodeId)
-      }
-      // 折叠时，处理未被隐藏的边的逻辑
-      if (isFolded && edgeModel.visible !== false) {
-        // 需要确认此分组节点是新连线的起点还是终点
-        // 创建一个虚拟边，虚拟边相对真实边，起点或者终点从一起分组内部的节点成为了分组，
-        // 如果需要被隐藏的边的起点在需要折叠的分组中，那么设置虚拟边的开始节点为此分组
-        if (this.children.has(sourceNodeId) || this.id === sourceNodeId) {
+
+      const group = this.graphModel.group as Group
+      const sourceGroupNode = sourceNode.visible
+        ? sourceNode
+        : group.getNodeGroupVisible(sourceNodeId)!
+      const targetGroupNode = targetNode.visible
+        ? targetNode
+        : group.getNodeGroupVisible(targetNodeId)!
+
+      // 如果真实边的起点和终点在同一个被折叠的分组中，则不创建虚拟边
+      if (sourceGroupNode.id === targetGroupNode.id) {
+        return
+      } else {
+        if (sourceGroupNode.id !== sourceNodeId) {
           data.startPoint = undefined
-          data.sourceNodeId = this.id
-        } else {
+          data.sourceNodeId = sourceGroupNode.id
+        }
+        if (targetGroupNode.id !== targetNodeId) {
           data.endPoint = undefined
-          data.targetNodeId = this.id
+          data.targetNodeId = targetGroupNode.id
         }
-        // 如果边的起点和终点都在分组内部，则不创建新的虚拟边
-        if (
-          targetNodeIdGroup.id !== this.id ||
-          sourceNodeIdGroup.id !== this.id
-        ) {
-          this.createVirtualEdge(data)
-        }
-        edgeModel.visible = false
-      }
-      // 展开时，处理被隐藏的边的逻辑
-      if (!isFolded && edgeModel.visible === false) {
-        // 展开分组时：判断真实边的起点和终点是否有任一节点在已折叠分组中，如果不是，则显示真实边。如果是，这修改这个边的对应目标节点id来创建虚拟边。
-        if (
-          targetNodeIdGroup &&
-          targetNodeIdGroup.isGroup &&
-          targetNodeIdGroup.isFolded
-        ) {
-          data.targetNodeId = targetNodeIdGroup.id
-          data.endPoint = undefined
-          this.createVirtualEdge(data)
-        } else if (
-          sourceNodeIdGroup &&
-          sourceNodeIdGroup.isGroup &&
-          sourceNodeIdGroup.isFolded
-        ) {
-          data.sourceNodeId = sourceNodeIdGroup.id
-          data.startPoint = undefined
-          this.createVirtualEdge(data)
-        } else {
-          edgeModel.visible = true
-        }
+        this.createVirtualEdge(data)
       }
     })
   }
 
-  createVirtualEdge(edgeData) {
+  /**
+   * 创建虚拟边
+   * @param edgeData 边数据
+   */
+  private createVirtualEdge(edgeData: EdgeConfig) {
     edgeData.pointsList = undefined
     const model = this.graphModel.addEdge(edgeData)
     model.virtual = true
     // 强制不保存group连线数据
     // model.getData = () => null;
+    // 虚拟边的文本编辑无法传递给对应的真实边，故禁用虚拟边的文本编辑
     model.text.editable = false
+    // 区别于其他用户创建的虚拟边，避免折叠操作时删除用户创建的虚拟边
     model.isFoldedEdge = true
   }
 
-  isInRange({ x1, y1, x2, y2 }) {
+  /**
+   * 获取分组及其所有子/孙节点的所有连线
+   */
+  private getAllEdges() {
+    const allEdges = [...this.incoming.edges, ...this.outgoing.edges]
+    this.children.forEach((nodeId) => {
+      const nodeModel = this.graphModel.getNodeModelById(nodeId)
+      if (nodeModel) {
+        if (nodeModel.isGroup) {
+          allEdges.push(...(nodeModel as GroupNodeModel).getAllEdges())
+        } else {
+          const incomingEdges = nodeModel.incoming.edges
+          const outgoingEdges = nodeModel.outgoing.edges
+          allEdges.push(...incomingEdges, ...outgoingEdges)
+        }
+      }
+    })
+    // 如果分组的子孙节点之间存在连线，则该会重复获取两次，需要去重
+    const edgeIds = new Set<string>()
+    return allEdges.filter((edge) => {
+      if (edgeIds.has(edge.id)) {
+        return false
+      }
+      edgeIds.add(edge.id)
+      return true
+    })
+  }
+
+  isInRange({ x1, y1, x2, y2 }: Record<'x1' | 'y1' | 'x2' | 'y2', number>) {
     return (
       x1 >= this.x - this.width / 2 &&
       x2 <= this.x + this.width / 2 &&
@@ -279,14 +308,14 @@ export class GroupNodeModel extends RectResizeModel {
     )
   }
 
-  isAllowMoveTo({ x1, y1, x2, y2 }) {
+  isAllowMoveTo({ x1, y1, x2, y2 }: Record<'x1' | 'y1' | 'x2' | 'y2', number>) {
     return {
       x: x1 >= this.x - this.width / 2 && x2 <= this.x + this.width / 2,
       y: y1 >= this.y - this.height / 2 && y2 <= this.y + this.height / 2,
     }
   }
 
-  setAllowAppendChild(isAllow) {
+  setAllowAppendChild(isAllow: boolean) {
     this.setProperty('groupAddable', isAllow)
   }
 
@@ -329,19 +358,21 @@ export class GroupNodeModel extends RectResizeModel {
       }
     })
     const { properties } = data
+    // TODO: 这两个属性为啥要删除？
     delete properties?.groupAddable
     delete properties?.isFolded
     return data
   }
 
+  // TODO: 如何保证折叠不会引起history的变化
   getHistoryData() {
     const data = super.getData()
     data.children = [...this.children]
     data.isGroup = true
     const { properties } = data
     delete properties?.groupAddable
+    delete properties?.isFolded
     if (properties?.isFolded) {
-      // 如果分组被折叠
       data.x = data.x + this.unfoldedWidth / 2 - this.foldedWidth / 2
       data.y = data.y + this.unfoldedHeight / 2 - this.foldedHeight / 2
     }

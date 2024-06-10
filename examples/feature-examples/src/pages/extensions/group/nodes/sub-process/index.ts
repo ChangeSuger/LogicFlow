@@ -1,8 +1,11 @@
 import LogicFlow from '@logicflow/core'
-import { GroupNode, GroupNodeModel } from '@logicflow/extension'
+import {
+  GroupNode,
+  GroupNodeModel,
+  type GroupNodeConfig,
+} from '@logicflow/extension'
 
 import TextConfig = LogicFlow.TextConfig
-import NodeData = LogicFlow.NodeData
 
 export class SubProcess extends GroupNode {}
 
@@ -19,7 +22,7 @@ export class SubProcessModel extends GroupNodeModel {
     this.targetRules.push(circleOnlyAsTarget)
   }
 
-  initNodeData(data: NodeData) {
+  initNodeData(data: GroupNodeConfig) {
     super.initNodeData(data)
     this.foldable = true
     this.resizable = true

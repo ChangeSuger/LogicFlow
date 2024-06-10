@@ -72,11 +72,7 @@ export function SubProcessFactory(): {
   class model extends GroupNodeModel {
     boundaryEvents: any
 
-    initNodeData(data: {
-      width: number
-      height: number
-      properties: Record<string, any>
-    }) {
+    initNodeData(data) {
       super.initNodeData(data)
       this.foldable = true
       // this.isFolded = true;

@@ -1,7 +1,10 @@
 import LogicFlow from '@logicflow/core'
-import { GroupNode, GroupNodeModel } from '@logicflow/extension'
+import {
+  GroupNode,
+  GroupNodeModel,
+  type GroupNodeConfig,
+} from '@logicflow/extension'
 
-import NodeConfig = LogicFlow.NodeConfig
 import TextConfig = LogicFlow.TextConfig
 
 export class CustomGroup extends GroupNode {}
@@ -9,8 +12,9 @@ export class CustomGroup extends GroupNode {}
 export class CustomGroupModel extends GroupNodeModel {
   foldedText?: TextConfig
 
-  initNodeData(data: NodeConfig) {
+  initNodeData(data: GroupNodeConfig) {
     super.initNodeData(data)
+    this.foldable = true
     this.isRestrict = true
     this.resizable = true
     this.width = 480
@@ -26,8 +30,6 @@ export class CustomGroupModel extends GroupNodeModel {
 
   foldGroup(folded: boolean) {
     super.foldGroup(folded)
-    // this.isFolded = folded
-
     if (folded) {
       if (this.foldedText) {
         this.text = { ...this.foldedText }
