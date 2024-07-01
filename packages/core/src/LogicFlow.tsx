@@ -65,9 +65,13 @@ export class LogicFlow {
   snaplineModel?: SnaplineModel
 
   components: ExtensionRenderFunc[] = []
-  // 个性配置的插件，覆盖全局配置的插件
-  readonly plugins: ExtensionType[]
-  // 全局配置的插件，所有的LogicFlow示例都会使用
+  /**
+   * 个性配置的插件，覆盖全局配置的插件
+   */
+  readonly plugins?: ExtensionType[]
+  /**
+   * 全局配置的插件，所有的 LogicFlow 实例在未配置插件时，会自动加载全局配置的插件
+   */
   static extensions: Map<string, ExtensionConfig> = new Map()
   // 插件扩展方法
   extension: Record<string, Extension | ExtensionDefinition> = {}
@@ -112,7 +116,7 @@ export class LogicFlow {
       container: this.container, // TODO：测试该部分是否会有问题
     })
 
-    this.plugins = initOptions.plugins ?? []
+    this.plugins = initOptions.plugins
 
     const { eventCenter } = this.graphModel
     this.tool = new Tool(this)
@@ -1294,10 +1298,7 @@ export class LogicFlow {
    * @param extension
    * @param props
    */
-  static use(
-    extension: ExtensionConstructor | ExtensionDefinition,
-    props?: Record<string, unknown>,
-  ): void {
+  static use(extension: ExtensionType, props?: Record<string, unknown>): void {
     const { pluginName } = extension
     if (!pluginName) {
       throw new Error(`请给插件指定 pluginName!`)
@@ -1314,38 +1315,34 @@ export class LogicFlow {
   }
 
   private installPlugins(disabledPlugins: string[] = []) {
-    const extensionsAddByUse = Array.from(
-      LogicFlow.extensions,
-      ([, extension]) => extension,
-    )
     // 安装插件，优先使用个性插件
-    const extensions = [...this.plugins, ...extensionsAddByUse]
-    forEach(extensions, (ext) => {
-      let extension: ExtensionConstructor | ExtensionDefinition
-      let props: Record<string, any> | undefined
-
-      if (pluginFlag in ext) {
-        extension = ext.extension
-        props = ext.props
-      } else {
-        extension = ext
-      }
-
-      const pluginName = extension?.pluginName
-
-      if (indexOf(disabledPlugins, pluginName) === -1) {
-        this.installPlugin(extension, props)
-      }
-    })
+    if (this.plugins) {
+      const extensions = this.plugins
+      forEach(extensions, (ext) => {
+        const pluginName = ext.pluginName
+        if (indexOf(disabledPlugins, pluginName) === -1) {
+          this.installPlugin(ext)
+        }
+      })
+    } else {
+      const extensionsAddByUser = Array.from(
+        LogicFlow.extensions,
+        ([, extension]) => extension,
+      )
+      forEach(extensionsAddByUser, (ext) => {
+        const { extension, props } = ext
+        const pluginName = extension.pluginName
+        if (indexOf(disabledPlugins, pluginName) === -1) {
+          this.installPlugin(extension, props)
+        }
+      })
+    }
   }
 
   /**
    * 加载插件-内部方法
    */
-  private installPlugin(
-    extension: ExtensionConstructor | ExtensionDefinition,
-    props?: Record<string, any>,
-  ) {
+  private installPlugin(extension: ExtensionType, props?: Record<string, any>) {
     if ('pluginName' in extension && 'install' in extension) {
       const { pluginName, install, render } = extension
       if (pluginName) {
