@@ -1,5 +1,5 @@
 import LogicFlow from '@logicflow/core'
-import { Control } from '@logicflow/extension'
+import { Control, MiniMap } from '@logicflow/extension'
 
 import { Button, Card, Divider } from 'antd'
 import { useEffect, useRef } from 'react'
@@ -107,7 +107,23 @@ export default function ControlExtension() {
         grid: {
           size: 10,
         },
-        plugins: [Control],
+        plugins: [Control, MiniMap],
+      })
+
+      const control = lf.extension.control as Control
+      control.addItem({
+        key: 'mini-Map',
+        iconClass: 'lf-local-mini-map',
+        title: '小地图',
+        text: '导航',
+        onClick: (lf: LogicFlow, ev: MouseEvent) => {
+          const position = lf.getPointByClient(ev.x, ev.y)
+          const miniMap = lf.extension.miniMap as MiniMap
+          miniMap.show(
+            position.domOverlayPosition.x - 180,
+            position.domOverlayPosition.y + 35,
+          )
+        },
       })
 
       lf.render(data)
